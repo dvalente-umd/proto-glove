@@ -80,6 +80,12 @@ byte pitch;
 uint16_t BNO055_SAMPLERATE_DELAY_MS = 100;
 double freq = 0;
 Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28, &Wire);
+unsigned long previousMillis = 0;
+
+// How long it should take for the buttons to update
+long delay = 30;
+
+unsigned long currentMillis;
 
 
 void setup(){
@@ -113,9 +119,11 @@ void updateControl(){
   // is less than the default on most platforms, but a convenient range to work with, where accuracy is not too important.
   volume = mozziAnalogRead<8>(INPUT_PIN);
   pitch = mozziAnalogRead<8>(FREQ_IN);
+  currentMillis = millis();
+  if(currentMillis - previousMillis > interval){
+    updateButtons();
+  }
 
-  updateButtons();
-  delay(30);
 
   if(toggleArray[0] == 1) carrier.setTable(SIN2048_DATA);
   if(toggleArray[1] == 1) carrier.setTable(SAW2048_DATA);

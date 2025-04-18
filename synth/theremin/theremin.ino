@@ -89,6 +89,8 @@ void setup(){
   carrier.setFreq(440);
   startMozzi(); // :))
 
+  toggleArray[0] = 1;
+
   pinMode(INTPIN, INPUT);
   digitalWrite(INTPIN, HIGH);
   trellis.begin(0x70);
@@ -105,12 +107,15 @@ void setup(){
 
 }
 
-
+// all control logic goes in here
 void updateControl(){
   // read the variable resistor for volume. We specifically request only 8 bits of resolution, here, which
   // is less than the default on most platforms, but a convenient range to work with, where accuracy is not too important.
   volume = mozziAnalogRead<8>(INPUT_PIN);
   pitch = mozziAnalogRead<8>(FREQ_IN);
+
+  updateButtons();
+  delay(30);
 
   if(toggleArray[0] == 1) carrier.setTable(SIN2048_DATA);
   if(toggleArray[1] == 1) carrier.setTable(SAW2048_DATA);
@@ -174,7 +179,5 @@ void updateButtons() {
 
 void loop(){
   audioHook(); // required here
-  updateButtons();
-
 
 }

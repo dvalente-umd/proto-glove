@@ -33,12 +33,18 @@
    Mozzi is licensed under the GNU Lesser General Public Licence (LGPL) Version 2.1 or later.
 */
 
+#include <Button.h>
 #include <Mozzi.h>
 #include <Oscil.h> // oscillator template
 #include <tables/sin2048_int8.h> // sine table for oscillator
+#include <tables/saw2048_int8.h> // saw wave table for oscillator
+#include <tables/triangle2048_int8.h> // triangle wave table
 
 // use: Oscil <table_size, update_rate> oscilName (wavetable), look in .h file of table #included above
-Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> aSin(SIN2048_DATA);
+Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier(SIN2048_DATA);
+
+//Oscil <SAW2048_NUM_CELLS, MOZZI_AUDIO_RATE> aSaw(SAW2048_DATA);
+//Oscil <TRIANGLE2048_NUM_CELLS, MOZZI_AUDIO_RATE> aTri(TRIANGLE2048_DATA);
 
 const char INPUT_PIN = 0; // set the input for the knob to analog pin 0
 const char FREQ_IN = 1;
@@ -47,11 +53,20 @@ const char FREQ_IN = 1;
 byte volume;
 byte pitch;
 
+//byte pressed;
+Button b1(2);
+Button b2(4);
+Button b3(7);
+
 
 void setup(){
   //Serial.begin(9600); // for Teensy 3.1, beware printout can cause glitches
   Serial.begin(115200); // set up the Serial output so we can look at the piezo values // set up the Serial output so we can look at the input values
-  aSin.setFreq(440);
+  b1.begin();
+  b2.begin();
+  b3.begin();
+  
+  carrier.setFreq(440);
   startMozzi(); // :))
 }
 
@@ -62,21 +77,28 @@ void updateControl(){
   volume = mozziAnalogRead<8>(INPUT_PIN);
   pitch = mozziAnalogRead<8>(FREQ_IN);
 
-  volume = map((int)volume, 135, 255, 0, 255);
-  int pitch_set = map((int)pitch, 135, 255, 220, 2000);
+  if(b1.pressed()) carrier.setTable(SIN2048_DATA);
+  if(b2.pressed()) carrier.setTable(SAW2048_DATA);
+  if(b3.pressed()) carrier.setTable(TRIANGLE2048_DATA);
+
+  //volume = map((int)volume, 135, 255, 0, 255);
+  int pitch_set = map((int)pitch, 0, 255, 220, 2000);
   // print the value to the Serial monitor for debugging
   Serial.print("volume = ");
   Serial.println((int)volume);
-  Serial.print("Pitch =  "); Serial.println(pitch_set);
+  Serial.print("Pitch =  "); Serial.println((int)pitch_set);
 
   //int freq_set = (int)pitch*3-62.5;
-  aSin.setFreq(pitch_set);
+  carrier.setFreq(pitch_set);
+
+
 
 }
 
 
 AudioOutput updateAudio(){
-  return MonoOutput::from16Bit((int)aSin.next() * volume); // 8 bit * 8 bit gives 16 bits value
+
+  return MonoOutput::from16Bit((int)carrier.next() * volume); // 8 bit * 8 bit gives 16 bits value
 }
 
 

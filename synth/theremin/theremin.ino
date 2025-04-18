@@ -93,12 +93,14 @@ void setup(){
   digitalWrite(INTPIN, HIGH);
   trellis.begin(0x70);
   while (!Serial) delay(10);
-   if (!bno.begin())
+  /*
+  if (!bno.begin())
   {
-    /* There was a problem detecting the BNO055 ... check your connections */
+    //There was a problem detecting the BNO055 ... check your connections 
     Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
     while (1);
   }
+  */
   bno.setExtCrystalUse(true);
 
 }

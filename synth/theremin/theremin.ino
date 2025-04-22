@@ -57,6 +57,9 @@ Adafruit_TrellisSet trellis = Adafruit_TrellisSet(&matrix0);
 const char INPUT_PIN = 0; // set the input for the knob to analog pin 0
 const char FREQ_IN = 1;
 
+#define SERIAL_DEBUG true
+
+#define BNO_ENABLED true
 // set to however many you're working with here, up to 8
 #define NUMTRELLIS 1
 #define numKeys (NUMTRELLIS * 16)
@@ -83,7 +86,13 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28, &Wire);
 unsigned long previousMillis = 0;
 
 // How long it should take for the buttons to update
-long delay = 30;
+long delay_time_buttons = 30;
+long delay_time_imu = 150;
+
+double x;
+double y;
+double z;
+sensors_event_t orientationData;
 
 unsigned long currentMillis;
 
@@ -100,15 +109,17 @@ void setup(){
   pinMode(INTPIN, INPUT);
   digitalWrite(INTPIN, HIGH);
   trellis.begin(0x70);
-  while (!Serial) delay(10);
-  /*
-  if (!bno.begin())
+  if(SERIAL_DEBUG) {
+    while (!Serial) delay(10);
+  }
+  
+  if (BNO_ENABLED && !bno.begin())
   {
     //There was a problem detecting the BNO055 ... check your connections 
     Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
     while (1);
   }
-  */
+  
   bno.setExtCrystalUse(true);
 
 }
@@ -119,9 +130,15 @@ void updateControl(){
   // is less than the default on most platforms, but a convenient range to work with, where accuracy is not too important.
   volume = mozziAnalogRead<8>(INPUT_PIN);
   pitch = mozziAnalogRead<8>(FREQ_IN);
+  previousMillis = currentMillis;
   currentMillis = millis();
-  if(currentMillis - previousMillis > interval){
+  if(currentMillis - previousMillis > delay_time_buttons){
     updateButtons();
+  }
+  if(BNO_ENABLED){
+    if(currentMillis - previousMillis > delay_time_imu){
+      updateIMU();
+    }
   }
 
 
@@ -132,9 +149,11 @@ void updateControl(){
   //volume = map((int)volume, 135, 255, 0, 255);
   int pitch_set = map((int)pitch, 0, 255, 220, 2000);
   // print the value to the Serial monitor for debugging
-  Serial.print("volume = ");
-  Serial.println((int)volume);
-  Serial.print("Pitch =  "); Serial.println((int)pitch_set);
+  if(SERIAL_DEBUG){
+    Serial.print("volume = ");
+    Serial.println((int)volume);
+    Serial.print("Pitch =  "); Serial.println((int)pitch_set);
+  }
 
   //int freq_set = (int)pitch*3-62.5;
   carrier.setFreq(pitch_set);
@@ -149,6 +168,25 @@ AudioOutput updateAudio(){
   return MonoOutput::from16Bit((int)carrier.next() * volume); // 8 bit * 8 bit gives 16 bits value
 }
 
+void updateIMU() {
+  bno.getEvent(&orientationData, Adafruit_BNO055::VECTOR_EULER);
+  if (orientationData.type == SENSOR_TYPE_ORIENTATION) {
+    x = orientationData.orientation.x;
+    y = orientationData.orientation.y;
+    z = orientationData.orientation.z;
+    if(SERIAL_DEBUG) {
+      Serial.print("Orient:");
+      Serial.print("\tx= ");
+      Serial.print(x);
+      Serial.print(" |\ty= ");
+      Serial.print(y);
+      Serial.print(" |\tz= ");
+      Serial.println(z);
+    }
+  }
+}
+
+
 void updateButtons() {
     // If a button was just pressed or released...
   if (trellis.readSwitches()) {
@@ -159,26 +197,34 @@ void updateButtons() {
         // Alternate the LED
         toggleArray[i] = !toggleArray[i];
         // mutex buttons, diffirent waveforms
-        Serial.print(i);
-        if(toggleArray[i] == 1) {
-          Serial.println(" turned on");
-        } else {
-          Serial.println(" turned off");
+        if(SERIAL_DEBUG) {
+          Serial.print(i);
+          if(toggleArray[i] == 1) {
+            Serial.println(" turned on");
+          } else {
+            Serial.println(" turned off");
+          }
         }
         if(i == 0) {
           toggleArray[1] = 0;
           toggleArray[2] = 0;
-          Serial.println("0 on, 1 and 2 off");
+          if(SERIAL_DEBUG) {
+            Serial.println("0 on, 1 and 2 off");
+          }
         }
         if(i == 1) {
           toggleArray[0] = 0;
           toggleArray[2] = 0;
-          Serial.println("1 on, 0 and 2 off");
+          if(SERIAL_DEBUG) {
+            Serial.println("1 on, 0 and 2 off");
+          }
         }
         if(i == 2) {
           toggleArray[0] = 0;
           toggleArray[1] = 0;
-          Serial.println("2 on, 0 and 1 off");
+          if(SERIAL_DEBUG) {
+            Serial.println("2 on, 0 and 1 off");
+          }
         }
       }
     }

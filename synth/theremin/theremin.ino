@@ -47,6 +47,10 @@
 
 // use: Oscil <table_size, update_rate> oscilName (wavetable), look in .h file of table #included above
 Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier(SIN2048_DATA);
+Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier2(SIN2048_DATA);
+Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier3(SIN2048_DATA);
+Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier4(SIN2048_DATA);
+Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier5(SIN2048_DATA);
 
 //Oscil <SAW2048_NUM_CELLS, MOZZI_AUDIO_RATE> aSaw(SAW2048_DATA);
 //Oscil <TRIANGLE2048_NUM_CELLS, MOZZI_AUDIO_RATE> aTri(TRIANGLE2048_DATA);
@@ -54,8 +58,8 @@ Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier(SIN2048_DATA);
 Adafruit_Trellis matrix0 = Adafruit_Trellis();
 Adafruit_TrellisSet trellis = Adafruit_TrellisSet(&matrix0);
 
-const char INPUT_PIN = 0; // set the input for the knob to analog pin 0
-const char FREQ_IN = 1;
+const char INPUT_PIN = 4; // set the input for the knob to analog pin 0
+const char FREQ_IN = 3;
 
 #define SERIAL_DEBUG true
 
@@ -66,7 +70,7 @@ const char FREQ_IN = 1;
 int toggleArray[numKeys] = { 0 };
 // Connect Trellis Vin to 5V and Ground to ground.
 // Connect the INT wire to pin #A2 (can change later!)
-#define INTPIN A2
+#define INTPIN A5
 // Connect I2C SDA pin to your Arduino SDA line
 // Connect I2C SCL pin to your Arduino SCL line
 // All Trellises share the SDA, SCL and INT pin!
@@ -128,9 +132,10 @@ void setup(){
 void updateControl(){
   // read the variable resistor for volume. We specifically request only 8 bits of resolution, here, which
   // is less than the default on most platforms, but a convenient range to work with, where accuracy is not too important.
-  volume = mozziAnalogRead<8>(INPUT_PIN);
-  pitch = mozziAnalogRead<8>(FREQ_IN);
-  previousMillis = currentMillis;
+  volume = mozziAnalogRead<10>(INPUT_PIN);
+  //volume = 255;
+  pitch = mozziAnalogRead<10>(FREQ_IN);
+  //previousMillis = currentMillis;
   currentMillis = millis();
   if(currentMillis - previousMillis > delay_time_buttons){
     updateButtons();
@@ -146,13 +151,13 @@ void updateControl(){
   if(toggleArray[1] == 1) carrier.setTable(SAW2048_DATA);
   if(toggleArray[2] == 1) carrier.setTable(TRIANGLE2048_DATA);
 
-  //volume = map((int)volume, 135, 255, 0, 255);
-  int pitch_set = map((int)pitch, 0, 255, 220, 2000);
+  volume = map((int)volume, 209, 260, 0, 255);
+  int pitch_set = map((int)pitch, 159, 110, 220, 2000);
   // print the value to the Serial monitor for debugging
   if(SERIAL_DEBUG){
     Serial.print("volume = ");
     Serial.println((int)volume);
-    Serial.print("Pitch =  "); Serial.println((int)pitch_set);
+    Serial.print("Pitch =  "); Serial.println((int)pitch);
   }
 
   //int freq_set = (int)pitch*3-62.5;
@@ -165,6 +170,11 @@ void updateControl(){
 
 AudioOutput updateAudio(){
 
+
+  char c1 = carrier2.next();
+  char c2 = carrier3.next();
+  char c3 = carrier4.next();
+  char c4 = carrier5.next();
   return MonoOutput::from16Bit((int)carrier.next() * volume); // 8 bit * 8 bit gives 16 bits value
 }
 

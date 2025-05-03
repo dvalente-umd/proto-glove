@@ -77,8 +77,8 @@ int toggleArray[numKeys] = { 0 };
 // Even 8 tiles use only 3 wires max
 
 // to convey the volume level from updateControl() to updateAudio()
-byte volume;
-byte pitch;
+int volume;
+int pitch;
 
 //byte pressed;
 
@@ -88,6 +88,7 @@ uint16_t BNO055_SAMPLERATE_DELAY_MS = 100;
 double freq = 0;
 Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28, &Wire);
 unsigned long previousMillis = 0;
+unsigned long previousMillis2 = 0;
 
 // How long it should take for the buttons to update
 long delay_time_buttons = 30;
@@ -132,17 +133,19 @@ void setup(){
 void updateControl(){
   // read the variable resistor for volume. We specifically request only 8 bits of resolution, here, which
   // is less than the default on most platforms, but a convenient range to work with, where accuracy is not too important.
-  volume = mozziAnalogRead<10>(INPUT_PIN);
+  volume = mozziAnalogRead<12>(INPUT_PIN);
   //volume = 255;
-  pitch = mozziAnalogRead<10>(FREQ_IN);
+  pitch = mozziAnalogRead<12>(FREQ_IN);
   //previousMillis = currentMillis;
   currentMillis = millis();
   if(currentMillis - previousMillis > delay_time_buttons){
     updateButtons();
+    previousMillis = currentMillis;
   }
   if(BNO_ENABLED){
-    if(currentMillis - previousMillis > delay_time_imu){
+    if(currentMillis - previousMillis2 > delay_time_imu){
       updateIMU();
+      previousMillis2 = currentMillis;
     }
   }
 
@@ -150,9 +153,9 @@ void updateControl(){
   if(toggleArray[0] == 1) carrier.setTable(SIN2048_DATA);
   if(toggleArray[1] == 1) carrier.setTable(SAW2048_DATA);
   if(toggleArray[2] == 1) carrier.setTable(TRIANGLE2048_DATA);
-
-  volume = map((int)volume, 209, 260, 0, 255);
-  int pitch_set = map((int)pitch, 159, 110, 220, 2000);
+  Serial.println((int)volume);
+  volume = map((int)volume, 2900, 3100, 0, 255);
+  int pitch_set = map((int)pitch, 1835, 1240, 220, 2000);
   // print the value to the Serial monitor for debugging
   if(SERIAL_DEBUG){
     Serial.print("volume = ");

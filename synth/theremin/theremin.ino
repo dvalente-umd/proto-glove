@@ -42,27 +42,12 @@
 #include "Adafruit_Trellis.h"
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BNO055.h>
+#include <AutoMap.h>
 #include <utility/imumaths.h>
 #include <math.h>
-
-// use: Oscil <table_size, update_rate> oscilName (wavetable), look in .h file of table #included above
-Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier(SIN2048_DATA);
-Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier2(SIN2048_DATA);
-Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier3(SIN2048_DATA);
-Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier4(SIN2048_DATA);
-Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier5(SIN2048_DATA);
-
-//Oscil <SAW2048_NUM_CELLS, MOZZI_AUDIO_RATE> aSaw(SAW2048_DATA);
-//Oscil <TRIANGLE2048_NUM_CELLS, MOZZI_AUDIO_RATE> aTri(TRIANGLE2048_DATA);
-
-Adafruit_Trellis matrix0 = Adafruit_Trellis();
-Adafruit_TrellisSet trellis = Adafruit_TrellisSet(&matrix0);
-
-const char INPUT_PIN = 4; // set the input for the knob to analog pin 0
-const char FREQ_IN = 3;
+#include <Smooth.h>
 
 #define SERIAL_DEBUG true
-
 #define BNO_ENABLED true
 // set to however many you're working with here, up to 8
 #define NUMTRELLIS 1
@@ -71,17 +56,55 @@ int toggleArray[numKeys] = { 0 };
 // Connect Trellis Vin to 5V and Ground to ground.
 // Connect the INT wire to pin #A2 (can change later!)
 #define INTPIN A5
+
+#define PI 3.1415
 // Connect I2C SDA pin to your Arduino SDA line
 // Connect I2C SCL pin to your Arduino SCL line
 // All Trellises share the SDA, SCL and INT pin!
 // Even 8 tiles use only 3 wires max
 
+// use: Oscil <table_size, update_rate> oscilName (wavetable), look in .h file of table #included above
+Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier(SIN2048_DATA);
+
+// Effect Oscillators
+Oscil <SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> modulator(SIN2048_DATA);
+Oscil <SIN2048_NUM_CELLS, MOZZI_CONTROL_RATE> intensityMod(SIN2048_DATA);
+
+
+int mod_ratio = 5;
+long fm_intensity;
+// smoothing for intensity to remove clicks on transitions
+float smoothness = 0.95f;
+Smooth <long> aSmoothIntensity(smoothness);
+
+
+Adafruit_Trellis matrix0 = Adafruit_Trellis();
+Adafruit_TrellisSet trellis = Adafruit_TrellisSet(&matrix0);
+
+const char THUMB = 4; // set the input for the knob to analog pin 0
+const char INDEX = 3;
+const char MIDDLE = 2;
+const char RING = 1;
+
+// desired intensity max and min, for AutoMap, note they're inverted for reverse dynamics
+const float MAX_INTENSITY = 700;
+const float MIN_INTENSITY = 10;
+
+// desired mod speed max and min, for AutoMap, note they're inverted for reverse dynamics
+const float MAX_MOD_SPEED = 10000;
+const float MIN_MOD_SPEED = 1;
+
+const float MIN_CARRIER_FREQ = 22;
+const float MAX_CARRIER_FREQ = 440;
+
+//Maps
+AutoMap kMapCarrierFreq(1180,1860,MIN_CARRIER_FREQ,MAX_CARRIER_FREQ);
+AutoMap kMapIntensity(-90,30,MIN_INTENSITY,MAX_INTENSITY);
+AutoMap kMapModSpeed(-110,20,MIN_MOD_SPEED,MAX_MOD_SPEED);
+
 // to convey the volume level from updateControl() to updateAudio()
 int volume;
 int pitch;
-
-//byte pressed;
-
 
 
 uint16_t BNO055_SAMPLERATE_DELAY_MS = 100;
@@ -94,17 +117,17 @@ unsigned long previousMillis2 = 0;
 long delay_time_buttons = 30;
 long delay_time_imu = 150;
 
-double x;
-double y;
-double z;
+float x;
+float y;
+float z;
 sensors_event_t orientationData;
 
 unsigned long currentMillis;
 
 
 void setup(){
-  //Serial.begin(9600); // for Teensy 3.1, beware printout can cause glitches
-  Serial.begin(115200); // set up the Serial output so we can look at the piezo values // set up the Serial output so we can look at the input values
+  Serial.begin(9600); // for Teensy 3.1, beware printout can cause glitches
+  //Serial.begin(115200); // set up the Serial output so we can look at the piezo values // set up the Serial output so we can look at the input values
 
   carrier.setFreq(440);
   startMozzi(); // :))
@@ -133,10 +156,12 @@ void setup(){
 void updateControl(){
   // read the variable resistor for volume. We specifically request only 8 bits of resolution, here, which
   // is less than the default on most platforms, but a convenient range to work with, where accuracy is not too important.
-  volume = mozziAnalogRead<12>(INPUT_PIN);
-  //volume = 255;
-  pitch = mozziAnalogRead<12>(FREQ_IN);
-  //previousMillis = currentMillis;
+  volume = mozziAnalogRead<12>(THUMB);
+  pitch = mozziAnalogRead<12>(INDEX);
+
+
+
+
   currentMillis = millis();
   if(currentMillis - previousMillis > delay_time_buttons){
     updateButtons();
@@ -149,36 +174,57 @@ void updateControl(){
     }
   }
 
-
   if(toggleArray[0] == 1) carrier.setTable(SIN2048_DATA);
   if(toggleArray[1] == 1) carrier.setTable(SAW2048_DATA);
   if(toggleArray[2] == 1) carrier.setTable(TRIANGLE2048_DATA);
-  Serial.println((int)volume);
+
   volume = map((int)volume, 2900, 3100, 0, 255);
-  int pitch_set = map((int)pitch, 1835, 1240, 220, 2000);
-  // print the value to the Serial monitor for debugging
-  if(SERIAL_DEBUG){
+
+  FM_synthesis();
+
+  /*if(SERIAL_DEBUG){
     Serial.print("volume = ");
     Serial.println((int)volume);
     Serial.print("Pitch =  "); Serial.println((int)pitch);
-  }
+  }*/
 
   //int freq_set = (int)pitch*3-62.5;
-  carrier.setFreq(pitch_set);
-
-
 
 }
 
 
 AudioOutput updateAudio(){
+  long modulation = aSmoothIntensity.next(fm_intensity) * modulator.next();
+  return MonoOutput::from16Bit(carrier.phMod(modulation)*volume); // 8 bit * 8 bit gives 16 bits value
+}
+
+void FM_synthesis(){
+  int pitch_set = kMapCarrierFreq(pitch);
+  // print the value to the Serial monitor for debugging
+
+  int mod_freq = pitch_set * mod_ratio;
+
+  carrier.setFreq(pitch_set);
+  modulator.setFreq(mod_freq);
+
+  //int fm_read = mozziAnalogRead(MIDDLE);
+  //int speed_read = mozziAnalogRead(RING);
+
+  //Serial.print("Thumb read: "); Serial.print(volume); Serial.print("\tIndex read: "); Serial.print(pitch);
+  //Serial.print("\tMiddle read: " ); Serial.print(fm_read); Serial.print("\tRing read: "); Serial.println(speed_read);
 
 
-  char c1 = carrier2.next();
-  char c2 = carrier3.next();
-  char c3 = carrier4.next();
-  char c4 = carrier5.next();
-  return MonoOutput::from16Bit((int)carrier.next() * volume); // 8 bit * 8 bit gives 16 bits value
+  int fm_calibrated = kMapIntensity(y);
+  float mod_speed = (float)kMapModSpeed(z)/1000;
+
+  fm_intensity = ((long)fm_calibrated * (intensityMod.next()+128))>>8; // shift back to range after 8 bit multiply
+
+  //Serial.print("Y: "); Serial.print((int)y); Serial.print("\tZ: "); Serial.println((int)z);
+  /*Serial.print("FM calibrated: "); Serial.print(fm_calibrated); Serial.print("\tFM intensity: "); Serial.print(fm_intensity);
+  Serial.print("\tMod Speed: "); Serial.println(mod_speed);*/
+
+  intensityMod.setFreq(mod_speed);
+
 }
 
 void updateIMU() {
@@ -187,7 +233,7 @@ void updateIMU() {
     x = orientationData.orientation.x;
     y = orientationData.orientation.y;
     z = orientationData.orientation.z;
-    if(SERIAL_DEBUG) {
+    /*if(SERIAL_DEBUG) {
       Serial.print("Orient:");
       Serial.print("\tx= ");
       Serial.print(x);
@@ -195,7 +241,7 @@ void updateIMU() {
       Serial.print(y);
       Serial.print(" |\tz= ");
       Serial.println(z);
-    }
+    }*/
   }
 }
 
@@ -243,6 +289,11 @@ void updateButtons() {
     }
   }
 }
+
+/*float mapfloat(float x, float in_min, float in_max, float out_min, float out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}*/
 
 void loop(){
   audioHook(); // required here

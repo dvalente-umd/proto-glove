@@ -64,7 +64,7 @@ int getChordZone(int val) {
   return 2;
 }
 
-void playChord(Oscil<int8_t, AUDIO_RATE> &osc1, Oscil<int8_t, AUDIO_RATE> &osc2, Oscil<int8_t, AUDIO_RATE> &osc3, int chordId, int fingerId) {
+void playChord(int chordId, int fingerId) {
   switch (fingerId) {
     case 0: // Index
       if (chordId == 0) { osc1.setFreq(261); osc2.setFreq(329); osc3.setFreq(392); } // C
@@ -90,7 +90,7 @@ void updateControl() {
   int middleRaw = mozziAnalogRead<12>(MIDDLE_PIN);
   int ringRaw = mozziAnalogRead<12>(RING_PIN);
 
-  volume = map(thumbRaw, 0, 4095, 0, 255);
+  volume = map(thumbRaw, 2900, 3100, 0, 255);
 
   playChord(oscIndex1, oscIndex2, oscIndex3, getChordZone(indexRaw), 0);
   playChord(oscMiddle1, oscMiddle2, oscMiddle3, getChordZone(middleRaw), 1);
@@ -111,7 +111,7 @@ AudioOutput updateAudio() {
   int sum = oscIndex1.next() + oscIndex2.next() + oscIndex3.next()
           + oscMiddle1.next() + oscMiddle2.next() + oscMiddle3.next()
           + oscRing1.next() + oscRing2.next() + oscRing3.next();
-  return MonoOutput::from16Bit(sum * volume / 3);
+  return MonoOutput::from16Bit(sum * volume);
 }
 
 void updateIMU() {

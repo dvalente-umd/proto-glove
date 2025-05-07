@@ -29,6 +29,7 @@
 #include <tables/cos2048_int8.h> // for filter modulation
 #include <ResonantFilter.h>
 #include <mozzi_rand.h>
+#include<Smooth.h>
 
 Oscil<SIN2048_NUM_CELLS, MOZZI_AUDIO_RATE> carrier(SIN2048_DATA);
 Oscil<COS2048_NUM_CELLS, MOZZI_CONTROL_RATE> kFilterMod(COS2048_DATA); //LFO 1
@@ -41,13 +42,16 @@ Oscil<COS2048_NUM_CELLS, MOZZI_CONTROL_RATE> kFilterMod2(COS2048_DATA); //LFO 2
 ResonantFilter<NOTCH> rf; // Notch filter
 ResonantFilter<NOTCH> rf2;
 
+float smoothness = 0.9975f;
+Smooth <long> aSmoothGain(smoothness);
+
 uint8_t resonance = 0; // range 0-255, 255 is most resonant
 
 byte volume;
 
 void setup(){
   startMozzi();
-  carrier.setFreq(2000);
+  carrier.setFreq(1000);
   kFilterMod.setFreq(1.3f);
   kFilterMod2.setFreq(1.3f);
 }
@@ -75,5 +79,5 @@ void updateControl(){
 
 AudioOutput updateAudio(){
   char filtsig = rf2.next((char)rf.next(carrier.next()));
-  return MonoOutput::fromNBit(16, volume*(filtsig));
+  return MonoOutput::fromNBit(16, (volume*(filtsig)));
 }

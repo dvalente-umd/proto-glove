@@ -37,6 +37,7 @@ AudioDelayFeedback <128> aDel;
 ResonantFilter<LOWPASS> cf;
 
 AutoMap CarrierMap(0, 255, 50, 200);
+AutoMap DelayMap(0, 255, 0, 1000);
 
 // the delay time, measured in samples, updated in updateControl, and used in updateAudio
 byte del_samps;
@@ -55,9 +56,9 @@ void setup(){
   Serial.begin(115200);
 
   startMozzi();
-  carrier.setFreq(130);
+  carrier.setFreq(1000);
   kDelSamps.setFreq(.163f); // set the delay time modulation frequency (ie. the sweep frequency)
-  aDel.setFeedbackLevel(-120); // can be -128 to 127 original value -111
+  aDel.setFeedbackLevel(-110); // can be -128 to 127 original value -111
 
   cf.setCutoffFreqAndResonance(200, 0);
 }
@@ -76,19 +77,20 @@ void updateControl(){
   //byte f1 = mozziAnalogRead<8>(freq_in);
   //int freq_map = map((int)f1, 0, 255, 220, 2000);
 
-  volume = mozziAnalogRead<8>(2);
-  byte f_read = mozziAnalogRead<8>(0);
+  //volume = mozziAnalogRead<8>(2);
+  //byte f_read = mozziAnalogRead<8>(0);
   byte d_read = mozziAnalogRead<8>(1);
 
-  int freq_set = CarrierMap((int)f_read);
-  float del_set = mapfloat(float(d_read), 0, 225, 0.1, 0.95);
+  //int freq_set = CarrierMap(f_read);
 
-  Serial.print("Carrier freq: "); Serial.print(freq_set); Serial.print(" Delay freq: "); Serial.println(del_set);
+  float del_set = (float)DelayMap(d_read)/1000;
 
-  carrier.setFreq(freq_set);
+  //Serial.print("Carrier freq: "); Serial.print(freq_set); //Serial.print(" Delay freq: "); Serial.println(del_set);
+
+  //carrier.setFreq(freq_set);
   kDelSamps.setFreq(del_set);
 
-  cf.setCutoffFreq(freq_set);
+  //cf.setCutoffFreq(freq_set);
 
   deltime = Q8n0_to_Q16n16(17) + ((long)kDelSamps.next()<<12);
 
@@ -104,7 +106,7 @@ AudioOutput updateAudio(){
   int8_t delsig = aDel.next(asig, deltime); //changed from deltime
   //return asig/8 + aDel.next(asig, (uint16_t) del_samps); // mix some straight signal with the delayed signal
   //return aDel.next(aTriangle.next(), (uint16_t) del_samps); // instead of the previous 2 lines for only the delayed signal
-  return MonoOutput::fromAlmostNBit(17, volume*((asig >> 6) + delsig)); // mix some straight signal with the delayed signal
+  return MonoOutput::fromAlmostNBit(17, ((asig >> 3) + delsig)); // mix some straight signal with the delayed signal
 }
 
 
